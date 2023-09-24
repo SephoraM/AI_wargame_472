@@ -539,7 +539,20 @@ def main():
     parser.add_argument('--max_time', type=float, help='maximum search time')
     parser.add_argument('--game_type', type=str, default="manual", help='game type: auto|attacker|defender|manual')
     parser.add_argument('--broker', type=str, help='play via a game broker')
+
     args = parser.parse_args()
+
+    #allows the user to modify game parameters
+    answer_gametype= input(f"The Current Game Type is: {args.game_type}. Would you like to change the Game Type Y/N: ")
+    answer_gametype=answer_gametype.lower()
+    if answer_gametype=="y":
+       args.game_type= input("Choose any of the following game types (auto|attacker|defender|manual): ")
+    answer_max=input(f"The Current Max Depth is: {args.max_depth} and the current max time is: {args.max_time}."
+                     "Would you like to modify these parameters Y/N: ")
+    answer_max=answer_max.lower()
+    if answer_max=="y":
+        args.max_depth=int(input("Enter the maximum search depth: "))
+        args.max_time=float(input("Enter the maximum search time: "))
 
     # parse the game type
     if args.game_type == "attacker":
