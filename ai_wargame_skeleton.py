@@ -39,6 +39,12 @@ class GameType(Enum):
     CompVsDefender = 2
     CompVsComp = 3
 
+class MoveDirection(Enum):
+    Up = 0
+    Left = 1
+    Down = 2
+    Right = 3
+
 ##############################################################################################################
 
 @dataclass(slots=True)
@@ -310,21 +316,74 @@ class Game:
             self.remove_dead(coord)
 
     def is_valid_move(self, coords : CoordPair) -> bool:
-        """Validate a move expressed as a CoordPair. TODO: WRITE MISSING CODE!!!"""
+        """Validate a move expressed as a CoordPair."""
         if not self.is_valid_coord(coords.src) or not self.is_valid_coord(coords.dst):
             return False
-        unit = self.get(coords.src)
-        if unit is None or unit.player != self.next_player:
+        unit_src = self.get(coords.src)
+        if unit_src is None or unit_src.player != self.next_player:
             return False
-        unit = self.get(coords.dst)
-        return (unit is None)
+        unit_dst = self.get(coords.dst)
+        if (unit_src == unit_dst): 
+            return True
+        if unit_dst is None:
+            return self.is_valid_movement(unit_src, coords.src, coords.dst)
+        if unit_dst.player != self.next_player:
+            return self.is_valid_attack(coords.src, coords.dst)
+        return self.is_valid_repair(unit_src, unit_dst, coords.src, coords.dst)
+    
+    def is_valid_movement(self, unit_src: Unit, src: Coord, dst: Coord) -> bool:
+        """ Determine whether the move is a valid movement. Assumes the destination is free."""
+        direction = None
+        for i, adj in enumerate(src.iter_adjacent()):
+            if adj == dst:
+                direction = MoveDirection(i)
+            elif (self.get(adj) is not None and self.get(adj).player != self.next_player and 
+                  unit_src.type != UnitType.Tech and unit_src.type != UnitType.Virus):
+                return False
+        return (direction is not None and 
+                ((unit_src.player == Player.Attacker and (direction == MoveDirection.Up or direction == MoveDirection.Left)) or 
+                 (unit_src.player == Player.Defender and (direction == MoveDirection.Down or direction == MoveDirection.Right))))
+    
+    def is_valid_attack(self, src: Coord, dst: Coord) -> bool:
+        """ Determine whether the move is a valid attack. Assumes the destination is occupied by adversary unit."""
+        for adj in src.iter_adjacent():
+            if adj == dst:
+                return True
+        return False
+     
+            
+    def is_valid_repair(self, unit_src: Unit, unit_dst: Unit, src: Coord, dst: Coord) -> bool:
+        """ Determine whether the move is a valid repair. Assumes the destination is occupied by friendly unit."""
+        isAdjacent = False
+        for adj in src.iter_adjacent():
+            if adj == dst:
+                isAdjacent = True
+        return isAdjacent and unit_src.repair_amount(unit_dst) > 0 
 
     def perform_move(self, coords : CoordPair) -> Tuple[bool,str]:
-        """Validate and perform a move expressed as a CoordPair. TODO: WRITE MISSING CODE!!!"""
+        """Validate and perform a move expressed as a CoordPair."""
         if self.is_valid_move(coords):
-            self.set(coords.dst,self.get(coords.src))
-            self.set(coords.src,None)
-            return (True,"")
+            unit_dst = self.get(coords.dst)
+            unit_src = self.get(coords.src)
+            message = ""
+            if (coords.src == coords.dst):
+                for adj in coords.src.iter_range(1):
+                    if self.get(adj) is not None:
+                        self.mod_health(adj, -2)
+                self.mod_health(coords.src, -9)
+                message = f"Self-destruct at {coords.src}"
+            elif (unit_dst is None):
+                self.set(coords.dst,unit_src)
+                self.set(coords.src,None)
+                message = f"Move from {coords.src} to {coords.dst}"
+            elif (unit_dst.player != self.next_player):
+                self.mod_health(coords.dst, -unit_src.damage_amount(unit_dst))
+                self.mod_health(coords.src, -unit_dst.damage_amount(unit_src))
+                message = f"Attack from {coords.src} to {coords.dst}"
+            else:
+                self.mod_health(coords.dst, unit_src.repair_amount(unit_dst))
+                message = f"Repair from {coords.src} to {coords.dst}"
+            return (True,message)
         return (False,"invalid move")
 
     def next_turn(self):
