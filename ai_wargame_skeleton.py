@@ -350,6 +350,7 @@ class Game:
             if adj == dst:
                 return True
         return False
+     
             
     def is_valid_repair(self, unit_src: Unit, unit_dst: Unit, src: Coord, dst: Coord) -> bool:
         """ Determine whether the move is a valid repair. Assumes the destination is occupied by friendly unit."""
