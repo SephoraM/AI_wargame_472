@@ -544,7 +544,7 @@ def main():
 
     #allows the user to modify game parameters
     answer_gametype= input(f"The Current Game Type is: {args.game_type}. Would you like to change the Game Type Y/N: ")
-    answer_gametype=answer_gametype.lower()
+    answer_gametype= answer_gametype.lower()
     if answer_gametype=="y":
        args.game_type= input("Choose any of the following game types (auto|attacker|defender|manual): ")
     answer_max=input(f"The Current Max Depth is: {args.max_depth} and the current max time is: {args.max_time}."
