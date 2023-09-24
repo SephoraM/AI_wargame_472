@@ -633,7 +633,7 @@ def main():
     answer_alpha = input("Would you like to modify the Alpha-Beta parameter? Y/N: ")
     answer_alpha = answer_alpha.lower()
     if answer_alpha == "y":
-        options.alpha_beta = bool(input("For Alpha-Beta On (Enter True)| Off (Enter False): "))
+        options.alpha_beta = bool(input("For Alpha-Beta On (Enter True)|| Off (Enter False): "))
 
     # override class defaults via command line options
     if args.max_depth is not None:
