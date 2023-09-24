@@ -613,6 +613,17 @@ def main():
     # set up game options
     options = Options(game_type=game_type)
 
+    #allowing the user to modify max turns and alpha-beta parameters
+    answer_maxturns = input("Would you like to modify the Game Turns parameter? Y/N: ")
+    answer_maxturns=answer_maxturns.lower()
+    if answer_maxturns=="y":
+        options.max_turns=int(input("Please enter the maximum number of turns: "))
+    answer_alpha = input("Would you like to modify the Alpha-Beta parameter? Y/N: ")
+    answer_alpha = answer_alpha.lower()
+    if answer_alpha == "y":
+        options.alpha_beta = bool(input("For Alpha-Beta On (Enter True)| Off (Enter False): "))
+
+
     # override class defaults via command line options
     if args.max_depth is not None:
         options.max_depth = args.max_depth
