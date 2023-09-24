@@ -40,4 +40,4 @@ Each unit has an associated health level, represented by an integer between 0 an
 5.**Game Progression**: The game continues until one player's AI unit is destroyed, leading to a victory for the opposing player.
 
 # Play the Game
-                         Have fun strategizing and battling in AI Wargame!
+                                     Have fun strategizing and battling in AI Wargame!
