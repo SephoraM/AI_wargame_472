@@ -48,6 +48,19 @@ class MoveDirection(Enum):
 ##############################################################################################################
 
 @dataclass(slots=True)
+class Logger:
+    game_trace: str = ''
+    
+    def log(self, text: str):
+        self.game_trace += text + '\n'
+        
+    def write_to_file(self, alpha_beta : bool, timeout : int, max_turns : int):
+        with open(f"gameTrace-{alpha_beta}-{timeout}-{max_turns}.txt", 'w') as f:
+            f.write(self.game_trace)
+            
+##############################################################################################################
+
+@dataclass(slots=True)
 class Unit:
     player: Player = Player.Attacker
     type: UnitType = UnitType.Program
@@ -253,6 +266,7 @@ class Game:
     stats: Stats = field(default_factory=Stats)
     _attacker_has_ai : bool = True
     _defender_has_ai : bool = True
+    logger : Logger = field(default_factory=Logger)
 
     def __post_init__(self):
         """Automatically called after class init to set up the default board state."""
@@ -461,9 +475,11 @@ class Game:
                     print(f"Player {self.next_player.name}: ",end='')
                     print(result)
                     self.next_turn()
+                    self.logger.log(result)
                     break
                 else:
                     print("The move is not valid! Try again.")
+                    self.logger.log("The move is not valid! Try again.\n")
 
     def computer_turn(self) -> CoordPair | None:
         """Computer plays a move."""
@@ -649,14 +665,37 @@ def main():
 
     # create a new game
     game = Game(options=options)
-
+    
+    game_type_representation = ''
+    if game.options.game_type is GameType.AttackerVsDefender:
+        game_type_representation = 'P1 (Human) vs. P2 (Human)'
+    elif game.options.game_type is GameType.AttackerVsComp:
+        game_type_representation = 'P1 (Human) vs. P2 (AI)'
+    elif game.options.game_type is GameType.CompVsDefender:
+        game_type_representation = 'P1 (AI) vs. P2 (Human)'
+    else:
+        game_type_representation = 'P1 (AI) vs. P2 (AI)'
+    
+    options_trace = (
+                    f'Timeout: {game.options.max_time} seconds\n'
+                    f'Maximum number of turns: {game.options.max_turns} turns\n'
+                    f'Alpha-Beta: {game.options.alpha_beta}\n'
+                    f'Game Type: {game_type_representation}\n'
+                    f'Heuristic: Not Applicable'
+                    )
+    
+    game.logger.log(options_trace)
+                
     # the main game loop
     while True:
         print()
         print(game)
+        game.logger.log(str(game))
         winner = game.has_winner()
         if winner is not None:
             print(f"{winner.name} wins!")
+            game.logger.log(f"{winner.name} wins in {game.turns_played} turns!")
+            game.logger.write_to_file(game.options.alpha_beta, game.options.max_time, game.options.max_turns)
             break
         if game.options.game_type == GameType.AttackerVsDefender:
             game.human_turn()
