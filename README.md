@@ -5,6 +5,14 @@
     Tabesh Haidary    ID:40024147
 **Wargame AI project for COMP 472**
 
+### Project description
+
+This project builds upon the AI Wargame skeleton that was given, adding functionality for logging the game trace, taking input from the user for setting the game parameters, and validating and performing moves based on the game rules. Each of the team member contributed by engaging in group discussions about the project and coding the different requirements for deliverable 1.
+
+The first deliverable allows human vs human gameplay, the AI logic will be implemented in the next installment. 
+
+### Description of the game - (source: the project handout)
+
 **AI Wargame** is a two-player strategic board game where players take on the roles of an attacker (a) and a defender (d) on a 5 × 5 game board. The objective of the game is for the attacker to destroy the defender's AI unit while the defender aims to protect their AI. This readme provides an overview of the game rules and how to play.
 
 **Game Overview**

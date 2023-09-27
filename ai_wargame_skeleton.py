@@ -356,7 +356,8 @@ class Game:
                 return False
         return (direction is not None and 
                 ((unit_src.player == Player.Attacker and (direction == MoveDirection.Up or direction == MoveDirection.Left)) or 
-                 (unit_src.player == Player.Defender and (direction == MoveDirection.Down or direction == MoveDirection.Right))))
+                 (unit_src.player == Player.Defender and (direction == MoveDirection.Down or direction == MoveDirection.Right)) or
+                  unit_src.type == UnitType.Tech or unit_src.type == UnitType.Virus))
     
     def is_valid_attack(self, src: Coord, dst: Coord) -> bool:
         """ Determine whether the move is a valid attack. Assumes the destination is occupied by adversary unit."""
@@ -479,7 +480,7 @@ class Game:
                     break
                 else:
                     print("The move is not valid! Try again.")
-                    self.logger.log("The move is not valid! Try again.\n")
+                    self.logger.log(f"The move {mv} is not valid! Try again.\n")
 
     def computer_turn(self) -> CoordPair | None:
         """Computer plays a move."""
@@ -684,7 +685,9 @@ def main():
                     f'Heuristic: Not Applicable'
                     )
     
+    game.logger.log("-------------\n\nGame Parameters:")
     game.logger.log(options_trace)
+    game.logger.log("\n-------------\n\nGame Play:")
                 
     # the main game loop
     while True:
