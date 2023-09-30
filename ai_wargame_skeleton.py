@@ -57,6 +57,9 @@ class Logger:
     def write_to_file(self, alpha_beta : bool, timeout : int, max_turns : int):
         with open(f"gameTrace-{alpha_beta}-{timeout}-{max_turns}.txt", 'w') as f:
             f.write(self.game_trace)
+
+    def write_to_console(self):
+        print(self.game_trace)
             
 ##############################################################################################################
 
@@ -612,21 +615,34 @@ def main():
         prog='ai_wargame',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--max_depth', type=int, help='maximum search depth')
-    parser.add_argument('--max_time', type=float, help='maximum search time')
+    parser.add_argument('--max_time', type=float, default=5.0, help='maximum search time')
+    parser.add_argument('--max_turns', type=int, default=100, help='maximum number of turns')
     parser.add_argument('--game_type', type=str, default="manual", help='game type: auto|attacker|defender|manual')
+    parser.add_argument('--alpha_beta', type=bool, default=True, help='uses alpha-beta: True|False')
     parser.add_argument('--broker', type=str, help='play via a game broker')
     args = parser.parse_args()
+    
     # allows the user to modify game parameters
-    answer_gametype = input(f"The Current Game Type is: {args.game_type}. Would you like to change the Game Type Y/N: ")
+    answer_gametype = input(f"\nThe current Game Type is: {args.game_type}. Would you like to change the Game Type Y/N: ")
     answer_gametype = answer_gametype.lower()
     if answer_gametype == "y":
         args.game_type = input("Choose any of the following game types (H-H, H-AI, AI-H and AI-AI): ")
-    answer_max = input(f"The Current Max Depth is: {args.max_depth} and the current max time is: {args.max_time}."
-                       "Would you like to modify these parameters Y/N: ")
+
+    answer_max = input(f"\nThe current maximum allowed time for your program to return a move is: {args.max_time} seconds."
+                       " Would you like to modify this parameter Y/N: ")
     answer_max = answer_max.lower()
     if answer_max == "y":
-        args.max_depth = int(input("Enter the maximum search depth: "))
-        args.max_time = float(input("Enter the maximum search time: "))
+        args.max_time = float(input("Enter the maximum search time (seconds): "))
+    
+    answer_maxturns = input(f"\nThe current maximum number of turns is {args.max_turns}. Would you like to modify this? Y/N: ")
+    answer_maxturns=answer_maxturns.lower()
+    if answer_maxturns=="y":
+        args.max_turns = int(input("Please enter the maximum number of turns: "))
+
+    answer_alpha = input(f"\nThe current Alpha-Beta setting is: {args.alpha_beta}. Would you like to modify the Alpha-Beta parameter? Y/N: ")
+    answer_alpha = answer_alpha.lower()
+    if answer_alpha == "y":
+        args.alpha_beta = bool(input("For Alpha-Beta On (Enter True)| Off (Enter False): "))
 
     # parse the game type
     if args.game_type == "attacker" or args.game_type=="H-AI":
@@ -641,21 +657,6 @@ def main():
     # set up game options
     options = Options(game_type=game_type)
 
-    #allowing the user to modify max turns and alpha-beta parameters
-    answer_maxturns = input("Would you like to modify the Game Turns parameter? Y/N: ")
-    answer_maxturns=answer_maxturns.lower()
-    if answer_maxturns=="y":
-        options.max_turns=int(input("Please enter the maximum number of turns: "))
-    answer_maxtime = input("Would you like to modify the Game TimeOut parameter? Y/N: ")
-    answer_maxtime = answer_maxtime.lower()
-    if answer_maxtime == "y":
-        options.max_time = int(input("Please enter the maximum timeout: "))
-    answer_alpha = input("Would you like to modify the Alpha-Beta parameter? Y/N: ")
-    answer_alpha = answer_alpha.lower()
-    if answer_alpha == "y":
-        options.alpha_beta = bool(input("For Alpha-Beta On (Enter True)| Off (Enter False): "))
-
-
     # override class defaults via command line options
     if args.max_depth is not None:
         options.max_depth = args.max_depth
@@ -663,6 +664,10 @@ def main():
         options.max_time = args.max_time
     if args.broker is not None:
         options.broker = args.broker
+    if args.max_turns is not None:
+        options.max_turns = args.max_turns
+    if args.alpha_beta is not None:
+        options.alpha_beta = args.alpha_beta
 
     # create a new game
     game = Game(options=options)
@@ -688,6 +693,7 @@ def main():
     game.logger.log("-------------\n\nGame Parameters:")
     game.logger.log(options_trace)
     game.logger.log("\n-------------\n\nGame Play:")
+    game.logger.write_to_console()
                 
     # the main game loop
     while True:
