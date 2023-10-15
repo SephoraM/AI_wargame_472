@@ -248,6 +248,7 @@ class Options:
     max_turns : int | None = 100
     randomize_moves : bool = True
     broker : str | None = None
+    e_function : int | None = 0
 
 ##############################################################################################################
 
@@ -255,6 +256,8 @@ class Options:
 class Stats:
     """Representation of the global game statistics."""
     evaluations_per_depth : dict[int,int] = field(default_factory=dict)
+    evaluations : int = 0
+    branching_factors : list[int] = field(default_factory=list)
     total_seconds: float = 0.0
 
 ##############################################################################################################
@@ -269,10 +272,12 @@ class Game:
     stats: Stats = field(default_factory=Stats)
     _attacker_has_ai : bool = True
     _defender_has_ai : bool = True
-    logger : Logger = field(default_factory=Logger)
+    _default_winner : bool = False
+    logger : Logger = field(default_factory=Logger) 
 
     def __post_init__(self):
         """Automatically called after class init to set up the default board state."""
+        self.init_stats()
         dim = self.options.dim
         self.board = [[None for _ in range(dim)] for _ in range(dim)]
         md = dim-1
@@ -288,6 +293,11 @@ class Game:
         self.set(Coord(md-2,md),Unit(player=Player.Attacker,type=UnitType.Program))
         self.set(Coord(md,md-2),Unit(player=Player.Attacker,type=UnitType.Program))
         self.set(Coord(md-1,md-1),Unit(player=Player.Attacker,type=UnitType.Firewall))
+
+    def init_stats(self) -> None:
+        for i in range(1, self.options.max_depth +1):
+            self.stats.evaluations_per_depth[i] = 0
+        self.stats.branching_factors = []
 
     def clone(self) -> Game:
         """Make a new copy of a game for minimax recursion.
@@ -510,6 +520,7 @@ class Game:
     def has_winner(self) -> Player | None:
         """Check if the game is over and returns winner"""
         if self.options.max_turns is not None and self.turns_played >= self.options.max_turns:
+            _default_winner = True
             return Player.Defender
         if self._attacker_has_ai:
             if self._defender_has_ai:
@@ -529,6 +540,66 @@ class Game:
                     yield move.clone()
             move.dst = src
             yield move.clone()
+    
+    # def get_eval_function(self):
+    #     if (self.options.e_function == 0):
+    #         # e0 = (3VP1 + 3TP1 + 3FP1 + 3PP1 + 9999AIP1) − (3VP2 + 3TP2 + 3FP2 + 3PP2 + 9999AIP2)
+
+    #         return e0
+
+    def e0(self, currentState: Game) -> int:
+        value = 0
+        for (_,unit) in currentState.player_units(currentState.next_player):
+            value = value + 9999 if unit.type == UnitType.AI else value + 3
+        for (_,unit) in currentState.player_units(currentState.next_player.next()):
+            value = value - 9999 if unit.type == UnitType.AI else value - 3
+        return value
+    
+    def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
+        # if alpha_beta, then use alphabeta pruning
+        
+        # else, regular minimax
+        return self.minimax(self, 0, True, start_time)
+
+    # regular minimax function
+    def minimax(self, currentState: Game, depth: int, isMax: bool, start_time: datetime) -> Tuple[int, CoordPair | None]:
+        if (depth == self.options.max_depth):
+            self.stats.evaluations += 1
+            self.stats.evaluations_per_depth[depth] += 1
+            return (self.e0(currentState), None)
+        if(currentState.is_finished()):
+           if (isMax):
+               return (-898988989, None)
+           else: 
+               return (898989898, None)  
+
+        if isMax:
+            current_max = (-10000000, None)
+            count = 0
+            for move in currentState.move_candidates():
+                count +=1
+                currentGame = self.clone()
+                currentGame.perform_move(move)
+                max_tuple = self.minimax(currentGame, depth+1, False, start_time)
+                #print(f"current max: {current_max[0]} returned min: {max_tuple[0]}")
+                current_max = (((max_tuple[0],move) if max_tuple[0] > current_max[0] else current_max)) 
+            self.stats.branching_factors.append(count)
+            return current_max
+        else:  
+            current_min = (10000000, None)
+            count = 0
+            for move in currentState.move_candidates():
+                count +=1
+                currentGame = self.clone()
+                currentGame.perform_move(move)
+                min_tuple = self.minimax(currentGame, depth+1, True, start_time)
+                #print(f"current min: {current_min[0]} returned max: {min_tuple[0]}")
+                current_min = (((min_tuple[0],move) if min_tuple[0] < current_min[0] else current_min)) 
+            self.stats.branching_factors.append(count)
+            return current_min
+
+    def alphabeta(self, currentState: Game, depth: int, alpha: int, beta: int, isMax: bool) -> Tuple[int, CoordPair | None, float]:
+        pass
 
     def random_move(self) -> Tuple[int, CoordPair | None, float]:
         """Returns a random move."""
@@ -542,11 +613,10 @@ class Game:
     def suggest_move(self) -> CoordPair | None:
         """Suggest the next move using minimax alpha beta. TODO: REPLACE RANDOM_MOVE WITH PROPER GAME LOGIC!!!"""
         start_time = datetime.now()
-        (score, move, avg_depth) = self.random_move()
+        (score, move) = self.minimax_init(start_time)
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
         print(f"Heuristic score: {score}")
-        print(f"Average recursive depth: {avg_depth:0.1f}")
         print(f"Evals per depth: ",end='')
         for k in sorted(self.stats.evaluations_per_depth.keys()):
             print(f"{k}:{self.stats.evaluations_per_depth[k]} ",end='')
