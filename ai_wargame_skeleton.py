@@ -420,6 +420,50 @@ class Game:
                 message = f"Repair from {coords.src} to {coords.dst}"
             return (True,message)
         return (False,"invalid move")
+    
+    def perform_move(self, coords : CoordPair) -> Tuple[bool,str]:
+        """Validate and perform a move expressed as a CoordPair."""
+        if self.is_valid_move(coords):
+            unit_dst = self.get(coords.dst)
+            unit_src = self.get(coords.src)
+            message = ""
+            if (coords.src == coords.dst):
+                for adj in coords.src.iter_range(1):
+                    if self.get(adj) is not None:
+                        self.mod_health(adj, -2)
+                self.mod_health(coords.src, -9)
+                message = f"Self-destruct at {coords.src}"
+            elif (unit_dst is None):
+                self.set(coords.dst,unit_src)
+                self.set(coords.src,None)
+                message = f"Move from {coords.src} to {coords.dst}"
+            elif (unit_dst.player != self.next_player):
+                self.mod_health(coords.dst, -unit_src.damage_amount(unit_dst))
+                self.mod_health(coords.src, -unit_dst.damage_amount(unit_src))
+                message = f"Attack from {coords.src} to {coords.dst}"
+            else:
+                self.mod_health(coords.dst, unit_src.repair_amount(unit_dst))
+                message = f"Repair from {coords.src} to {coords.dst}"
+            return (True,message)
+        return (False,"invalid move")
+    
+    def perform_barebones_move(self, coords : CoordPair) -> None:
+        """Assumes valid move. Perform a move expressed as a CoordPair. No message,no validation."""
+        unit_dst = self.get(coords.dst)
+        unit_src = self.get(coords.src)
+        if (coords.src == coords.dst):
+            for adj in coords.src.iter_range(1):
+                if self.get(adj) is not None:
+                    self.mod_health(adj, -2)
+            self.mod_health(coords.src, -9)
+        elif (unit_dst is None):
+            self.set(coords.dst,unit_src)
+            self.set(coords.src,None)
+        elif (unit_dst.player != self.next_player):
+            self.mod_health(coords.dst, -unit_src.damage_amount(unit_dst))
+            self.mod_health(coords.src, -unit_dst.damage_amount(unit_src))
+        else:
+            self.mod_health(coords.dst, unit_src.repair_amount(unit_dst))
 
     def next_turn(self):
         """Transitions game to the next turn."""
@@ -556,24 +600,25 @@ class Game:
             move.dst = src
             yield move.clone()
     
-    def eval_f(self, currentState: Game) -> int:
+    def eval_f(self, currentState: Game) -> float:
+        player = self.next_player
+        opponent = self.next_player.next()
+        value=0
         match self.eval_type:
             case EvaluationType.E1:
                 return
             case EvaluationType.E2:
-                value=0
-                attacker_ai=currentState.player_ai(Player.Attacker)
-                defender_ai=currentState.player_ai(Player.Defender)
-                for (coord, unit) in currentState.player_units(Player.Attacker):
-                    value += unit.damage_amount(defender_ai[1]) * (1 / self.manhattan_dist(coord, defender_ai[0]))
-                for (coord,unit) in currentState.player_units(Player.Defender):
-                    value -= unit.damage_amount(attacker_ai[1])*(1 / self.manhattan_dist(coord, attacker_ai[0]))
+                p_ai_coords, p_ai_unit = currentState.player_ai(player)
+                o_ai_coords, o_ai_unit =currentState.player_ai(opponent)
+                for (coord,unit) in currentState.player_units(player):
+                    value += unit.damage_amount(o_ai_unit)*(1 / self.manhattan_dist(coord, o_ai_coords))
+                for (coord, unit) in currentState.player_units(opponent):
+                    value -= unit.damage_amount(p_ai_unit)*(1 / self.manhattan_dist(coord, p_ai_coords))
                 return value
             case _:
-                value = 0
-                for (_,unit) in currentState.player_units(Player.Attacker):
+                for (_,unit) in currentState.player_units(self.next_player):
                     value = value + 9999 if unit.type == UnitType.AI else value + 3
-                for (_,unit) in currentState.player_units(Player.Defender):
+                for (_,unit) in currentState.player_units(self.next_player.next()):
                     value = value - 9999 if unit.type == UnitType.AI else value - 3
                 return value
     
@@ -584,7 +629,8 @@ class Game:
         # if alpha_beta, then use alphabeta pruning
         
         # else, regular minimax
-        return self.minimax(self, 0, True, start_time)
+        # self.eval_type = EvaluationType.E2 if (self.next_player == Player.Defender) else EvaluationType.E0
+        return self.minimax(self.clone(), 0, True, start_time)
 
     # regular minimax function
     def minimax(self, currentState: Game, depth: int, isMax: bool, start_time: datetime) -> Tuple[int, CoordPair | None]:
@@ -595,29 +641,28 @@ class Game:
         depth += 1
         self.stats.evaluations += 1
         self.stats.evaluations_per_depth[depth] += 1
+        moves = list(currentState.move_candidates())
+        self.stats.branching_factors.append(len(moves))
+        
         if isMax:
             current_max = (-10000000, None)
-            count = 0
-            for move in currentState.move_candidates():
-                count +=1
-                currentGame = self.clone()
-                currentGame.perform_move(move)
+            for move in moves:
+                currentGame = currentState.clone()
+                currentGame.perform_barebones_move(move)
+                currentGame.next_turn()
                 min_tuple = self.minimax(currentGame, depth, False, start_time)
                 if min_tuple[0] > current_max[0]:
                     current_max = (min_tuple[0],move)
-            self.stats.branching_factors.append(count)
             return current_max
         else:  
             current_min = (10000000, None)
-            count = 0
-            for move in currentState.move_candidates():
-                count +=1
-                currentGame = self.clone()
-                currentGame.perform_move(move)
+            for move in moves:
+                currentGame = currentState.clone()
+                currentGame.perform_barebones_move(move)
+                currentGame.next_turn()
                 max_tuple = self.minimax(currentGame, depth, True, start_time)
                 if max_tuple[0] < current_min[0]:
                     current_min = (max_tuple[0],move)
-            self.stats.branching_factors.append(count)
             return current_min
 
     def alphabeta(self, currentState: Game, depth: int, alpha: int, beta: int, isMax: bool) -> Tuple[int, CoordPair | None, float]:
