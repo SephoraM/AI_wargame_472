@@ -555,10 +555,10 @@ class Game:
             value = value - 9999 if unit.type == UnitType.AI else value - 3
         return value
 
-    def coordinate_to_number(self:CoordPair)->int:
-        return (self.src.row+self.src.col)-(self.dst.row+self.dst.col)
+    def manhattan_dist(self:CoordPair)->int:
+        return abs((self.src.row-self.dst.row))+abs((self.src.col-self.dst.col))
     def e1(self, coords:CoordPair)->int:
-        return Unit.damage_amount(self,Unit.type.AI)*(1/self.coordinate_to_number(coords))
+        return Unit.damage_amount(self,Unit.type.AI)*(1/self.manhattan_dist(coords))
     def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
         # if alpha_beta, then use alphabeta pruning
         
