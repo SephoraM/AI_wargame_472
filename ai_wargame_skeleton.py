@@ -554,7 +554,26 @@ class Game:
         for (_,unit) in currentState.player_units(currentState.next_player.next()):
             value = value - 9999 if unit.type == UnitType.AI else value - 3
         return value
-    
+
+    def coordinate_to_number(self:CoordPair)->int:
+        # Separate the letter and number parts
+        letter_src, number_str_src = self.src[0], self.src[1:]
+        letter_dst, number_str_dst = self.dst[0], self.dst[1:]
+
+        # Convert the letter to a number (assuming A=1, B=2, C=3, ...)
+        letter_srcnb = ord(letter_src.upper()) - ord('A') + 1
+        letter_dstnb=ord(letter_dst.upper())-ord('A')+1
+
+        try:
+            # Try to convert the number part to an integer
+            number_src = int(number_str_src)
+            number_dst=int(number_str_dst)
+            return (letter_srcnb+number_src)-(letter_dstnb+number_dst)
+        except ValueError:
+            # Handle invalid input
+            return 0
+    def e1(self, coords:CoordPair)->int:
+        return Unit.damage_amount(self,Unit.type.AI)*(1/self.coordinate_to_number(coords))
     def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
         # if alpha_beta, then use alphabeta pruning
         
