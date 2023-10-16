@@ -253,7 +253,7 @@ class Options:
     max_turns : int | None = 100
     randomize_moves : bool = True
     broker : str | None = None
-    e_function : int | None = 0
+    e_function : EvaluationType = EvaluationType.E0
 
 ##############################################################################################################
 
@@ -278,8 +278,7 @@ class Game:
     _attacker_has_ai : bool = True
     _defender_has_ai : bool = True
     _time_has_elapsed : bool = False
-    logger : Logger = field(default_factory=Logger) 
-    eval_function : EvaluationType = EvaluationType.E0
+    logger : Logger = field(default_factory=Logger)
 
     def __post_init__(self):
         """Automatically called after class init to set up the default board state."""
@@ -556,11 +555,18 @@ class Game:
             yield move.clone()
     
     def eval_f(self, currentState: Game) -> int:
-        match self.eval_function:
+        match self.options.e_function:
             case EvaluationType.E1:
                 return
             case EvaluationType.E2:
-                return
+                value=0
+                attacker_ai=currentState.player_ai(Player.Attacker)
+                defender_ai=currentState.player_ai(Player.Defender)
+                for (coord, unit) in currentState.player_units(Player.Attacker):
+                    value += unit.damage_amount(defender_ai[1]) * (1 / self.manhattan_dist(coord, defender_ai[0]))
+                for (coord,unit) in currentState.player_units(Player.Defender):
+                    value -= unit.damage_amount(attacker_ai[1])*(1 / self.manhattan_dist(coord, attacker_ai[0]))
+                return value
             case _:
                 value = 0
                 for (_,unit) in currentState.player_units(Player.Attacker):
@@ -569,19 +575,8 @@ class Game:
                     value = value - 9999 if unit.type == UnitType.AI else value - 3
                 return value
 
-    def manhattan_dist(self: CoordPair) ->int:
-        return abs((self.src.row-self.dst.row))+abs((self.src.col-self.dst.col))
-    
-    def e1(self, currentState: Game)-> float:
-        value=0
-        attacker_ai=currentState.player_ai(Player.Attacker)
-        defender_ai=currentState.player_ai(Player.Defender)
-        for (coord, unit) in currentState.player_units(Player.Attacker):
-            value += unit.damage_amount(unit, defender_ai[1]) * (
-                        1 / currentState.manhattan_dist(CoordPair(src=coord, dst=defender_ai[0])))
-        for (coord,unit) in currentState.player_units(Player.Defender):
-            value -= unit.damage_amount(unit,attacker_ai[1])*(1 / currentState.manhattan_dist(CoordPair(src=coord, dst=attacker_ai[0])))
-        return value
+    def manhattan_dist(self, src: Coord, dst: Coord) ->int:
+        return abs((src.row-dst.row))+abs((src.col-dst.col))
     
     def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
         # if alpha_beta, then use alphabeta pruning
@@ -594,7 +589,7 @@ class Game:
         if (depth > self.options.max_depth or currentState.is_finished() or (datetime.now() - start_time).total_seconds() > self.options.max_time-.25):
             if (currentState.is_finished()):
                 return -1000000,None if isMax else 1000000,None
-            return self.e0(currentState), None
+            return self.eval_f(currentState), None
         depth += 1
         self.stats.evaluations += 1
         self.stats.evaluations_per_depth[depth] += 1
@@ -717,7 +712,7 @@ def main():
     parser.add_argument('--game_type', type=str, default="manual", help='game type: auto|attacker|defender|manual')
     parser.add_argument('--alpha_beta', type=bool, default=True, help='uses alpha-beta: True|False')
     parser.add_argument('--broker', type=str, help='play via a game broker')
-    parser.add_argument('--e_function', type=str, help='evaluation function: e0|e1|e2')
+    parser.add_argument('--e_function', type=str, default="e0", help='evaluation function: e0|e1|e2')
     args = parser.parse_args()
     
     # allows the user to modify game parameters
@@ -742,6 +737,11 @@ def main():
     if answer_alpha == "y":
         args.alpha_beta = bool(input("For Alpha-Beta On (Enter True)| Off (Enter False): "))
 
+    answer_e = input(f"\nThe current evaluation function is: {args.e_function}. Would you like to modify the evaluation function? Y/N: ")
+    answer_e = answer_e.lower()
+    if answer_e == "y":
+        args.e_function = bool(input("Enter e0 or e1 or e2: "))
+
     # parse the game type
     if args.game_type == "attacker" or args.game_type=="H-AI":
         game_type = GameType.AttackerVsComp
@@ -754,6 +754,14 @@ def main():
 
     # set up game options
     options = Options(game_type=game_type)
+
+    # parse the evaluation function
+    if args.e_function == "e1":
+        options.e_function = EvaluationType.E1
+    elif args.e_function == "e2":
+        options.e_function = EvaluationType.E2
+    else:
+        options.e_function = EvaluationType.E0 
 
     # override class defaults via command line options
     if args.max_depth is not None:
