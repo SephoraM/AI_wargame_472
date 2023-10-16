@@ -45,6 +45,11 @@ class MoveDirection(Enum):
     Down = 2
     Right = 3
 
+class EvaluationType(Enum):
+    E0 = 0
+    E1 = 1
+    E2 = 2
+
 ##############################################################################################################
 
 @dataclass(slots=True)
@@ -272,8 +277,9 @@ class Game:
     stats: Stats = field(default_factory=Stats)
     _attacker_has_ai : bool = True
     _defender_has_ai : bool = True
-    _default_winner : bool = False
+    _time_has_elapsed : bool = False
     logger : Logger = field(default_factory=Logger) 
+    eval_function : EvaluationType = EvaluationType.E0
 
     def __post_init__(self):
         """Automatically called after class init to set up the default board state."""
@@ -295,7 +301,7 @@ class Game:
         self.set(Coord(md-1,md-1),Unit(player=Player.Attacker,type=UnitType.Firewall))
 
     def init_stats(self) -> None:
-        for i in range(1, self.options.max_depth +1):
+        for i in range(1, self.options.max_depth +2):
             self.stats.evaluations_per_depth[i] = 0
         self.stats.branching_factors = []
 
@@ -519,8 +525,9 @@ class Game:
 
     def has_winner(self) -> Player | None:
         """Check if the game is over and returns winner"""
+        if self._time_has_elapsed:
+            return self.next_player
         if self.options.max_turns is not None and self.turns_played >= self.options.max_turns:
-            _default_winner = True
             return Player.Defender
         if self._attacker_has_ai:
             if self._defender_has_ai:
@@ -541,19 +548,21 @@ class Game:
             move.dst = src
             yield move.clone()
     
-    # def get_eval_function(self):
-    #     if (self.options.e_function == 0):
-    #         # e0 = (3VP1 + 3TP1 + 3FP1 + 3PP1 + 9999AIP1) − (3VP2 + 3TP2 + 3FP2 + 3PP2 + 9999AIP2)
+    def eval_function(self, currentState: Game) -> int:
+        match self.options.eval_function:
+            case EvaluationType.E1:
+                return
+            case EvaluationType.E2:
+                return
+            case _:
+                value = 0
+                for (_,unit) in currentState.player_units(Player.Attacker):
+                    value = value + 9999 if unit.type == UnitType.AI else value + 3
+                for (_,unit) in currentState.player_units(Player.Defender):
+                    value = value - 9999 if unit.type == UnitType.AI else value - 3
+                return value
 
-    #         return e0
 
-    def e0(self, currentState: Game) -> int:
-        value = 0
-        for (_,unit) in currentState.player_units(currentState.next_player):
-            value = value + 9999 if unit.type == UnitType.AI else value + 3
-        for (_,unit) in currentState.player_units(currentState.next_player.next()):
-            value = value - 9999 if unit.type == UnitType.AI else value - 3
-        return value
     
     def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
         # if alpha_beta, then use alphabeta pruning
@@ -563,16 +572,13 @@ class Game:
 
     # regular minimax function
     def minimax(self, currentState: Game, depth: int, isMax: bool, start_time: datetime) -> Tuple[int, CoordPair | None]:
-        if (depth == self.options.max_depth):
-            self.stats.evaluations += 1
-            self.stats.evaluations_per_depth[depth] += 1
-            return (self.e0(currentState), None)
-        if(currentState.is_finished()):
-           if (isMax):
-               return (-898988989, None)
-           else: 
-               return (898989898, None)  
-
+        if (depth > self.options.max_depth or currentState.is_finished() or (datetime.now() - start_time).total_seconds() > self.options.max_time-.25):
+            if (currentState.is_finished()):
+                return -1000000,None if isMax else 1000000,None
+            return self.e0(currentState), None
+        depth += 1
+        self.stats.evaluations += 1
+        self.stats.evaluations_per_depth[depth] += 1
         if isMax:
             current_max = (-10000000, None)
             count = 0
@@ -580,9 +586,10 @@ class Game:
                 count +=1
                 currentGame = self.clone()
                 currentGame.perform_move(move)
-                max_tuple = self.minimax(currentGame, depth+1, False, start_time)
-                #print(f"current max: {current_max[0]} returned min: {max_tuple[0]}")
-                current_max = (((max_tuple[0],move) if max_tuple[0] > current_max[0] else current_max)) 
+                currentGame.next_turn()
+                min_tuple = self.minimax(currentGame, depth, False, start_time)
+                if min_tuple[0] > current_max[0]:
+                    current_max = (min_tuple[0],move)
             self.stats.branching_factors.append(count)
             return current_max
         else:  
@@ -592,9 +599,10 @@ class Game:
                 count +=1
                 currentGame = self.clone()
                 currentGame.perform_move(move)
-                min_tuple = self.minimax(currentGame, depth+1, True, start_time)
-                #print(f"current min: {current_min[0]} returned max: {min_tuple[0]}")
-                current_min = (((min_tuple[0],move) if min_tuple[0] < current_min[0] else current_min)) 
+                currentGame.next_turn()
+                max_tuple = self.minimax(currentGame, depth, True, start_time)
+                if max_tuple[0] < current_min[0]:
+                    current_min = (max_tuple[0],move)
             self.stats.branching_factors.append(count)
             return current_min
 
@@ -616,6 +624,7 @@ class Game:
         (score, move) = self.minimax_init(start_time)
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
+        self._time_has_elapsed = elapsed_seconds > self.options.max_time
         print(f"Heuristic score: {score}")
         print(f"Evals per depth: ",end='')
         for k in sorted(self.stats.evaluations_per_depth.keys()):
@@ -689,6 +698,7 @@ def main():
     parser.add_argument('--game_type', type=str, default="manual", help='game type: auto|attacker|defender|manual')
     parser.add_argument('--alpha_beta', type=bool, default=True, help='uses alpha-beta: True|False')
     parser.add_argument('--broker', type=str, help='play via a game broker')
+    parser.add_argument('--e_function', type=str, help='evaluation function: e0|e1|e2')
     args = parser.parse_args()
     
     # allows the user to modify game parameters
