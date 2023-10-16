@@ -295,7 +295,7 @@ class Game:
         self.set(Coord(md-1,md-1),Unit(player=Player.Attacker,type=UnitType.Firewall))
 
     def init_stats(self) -> None:
-        for i in range(1, self.options.max_depth +1):
+        for i in range(0, self.options.max_depth + 1):
             self.stats.evaluations_per_depth[i] = 0
         self.stats.branching_factors = []
 
@@ -549,9 +549,9 @@ class Game:
 
     def e0(self, currentState: Game) -> int:
         value = 0
-        for (_,unit) in currentState.player_units(currentState.next_player):
+        for (_,unit) in currentState.player_units(Player.Attacker):
             value = value + 9999 if unit.type == UnitType.AI else value + 3
-        for (_,unit) in currentState.player_units(currentState.next_player.next()):
+        for (_,unit) in currentState.player_units(Player.Defender):
             value = value - 9999 if unit.type == UnitType.AI else value - 3
         return value
     
@@ -563,15 +563,15 @@ class Game:
 
     # regular minimax function
     def minimax(self, currentState: Game, depth: int, isMax: bool, start_time: datetime) -> Tuple[int, CoordPair | None]:
+        self.stats.evaluations += 1
+        self.stats.evaluations_per_depth[depth] += 1
         if (depth == self.options.max_depth):
-            self.stats.evaluations += 1
-            self.stats.evaluations_per_depth[depth] += 1
             return (self.e0(currentState), None)
-        if(currentState.is_finished()):
+        if (currentState.is_finished()):
            if (isMax):
-               return (-898988989, None)
+               return (898988989, None)
            else: 
-               return (898989898, None)  
+               return (-898989898, None)  
 
         if isMax:
             current_max = (-10000000, None)
@@ -582,7 +582,7 @@ class Game:
                 currentGame.perform_move(move)
                 max_tuple = self.minimax(currentGame, depth+1, False, start_time)
                 #print(f"current max: {current_max[0]} returned min: {max_tuple[0]}")
-                current_max = (((max_tuple[0],move) if max_tuple[0] > current_max[0] else current_max)) 
+                current_max = (((max_tuple[0],move) if max_tuple[0] > current_max[0] else current_max))
             self.stats.branching_factors.append(count)
             return current_max
         else:  
@@ -617,6 +617,7 @@ class Game:
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
         print(f"Heuristic score: {score}")
+        self.logger.log(f"Heuristic score: {score}")
         print(f"Evals per depth: ",end='')
         for k in sorted(self.stats.evaluations_per_depth.keys()):
             print(f"{k}:{self.stats.evaluations_per_depth[k]} ",end='')
@@ -625,7 +626,23 @@ class Game:
         if self.stats.total_seconds > 0:
             print(f"Eval perf.: {total_evals/self.stats.total_seconds/1000:0.1f}k/s")
         print(f"Elapsed time: {elapsed_seconds:0.1f}s")
+        self.logger.log(f"Elapsed time: {elapsed_seconds:0.1f}s")
+        self.logger.log(f"Cumulative evaluations: {self.stats.evaluations}")
+        self.logger.log(f"Average branching factor: {self.average_branching_factor():.2f}")
+        self.logger.log(f"{self.evals_depth_stats()}")
         return move
+        
+    def average_branching_factor(self) -> int:
+        branching_factors_sum = 0
+        for bf in self.stats.branching_factors:
+            branching_factors_sum += bf
+        return branching_factors_sum / len(self.stats.branching_factors)
+        
+    def evals_depth_stats(self) -> str:
+        s = ""
+        for k in self.stats.evaluations_per_depth:
+            s += f"Depth {k}: {self.stats.evaluations_per_depth[k]} evaluations. Percentage: {self.stats.evaluations_per_depth[k]/self.stats.evaluations}\n"
+        return s
 
     def post_move_to_broker(self, move: CoordPair):
         """Send a move to the game broker."""
