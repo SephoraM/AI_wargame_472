@@ -279,10 +279,12 @@ class Game:
     _defender_has_ai : bool = True
     _time_has_elapsed : bool = False
     logger : Logger = field(default_factory=Logger)
+    eval_type : EvaluationType = EvaluationType.E0
 
     def __post_init__(self):
         """Automatically called after class init to set up the default board state."""
         self.init_stats()
+        self.eval_type = self.options.e_function
         dim = self.options.dim
         self.board = [[None for _ in range(dim)] for _ in range(dim)]
         md = dim-1
@@ -555,7 +557,7 @@ class Game:
             yield move.clone()
     
     def eval_f(self, currentState: Game) -> int:
-        match self.options.e_function:
+        match self.eval_type:
             case EvaluationType.E1:
                 return
             case EvaluationType.E2:
@@ -574,7 +576,7 @@ class Game:
                 for (_,unit) in currentState.player_units(Player.Defender):
                     value = value - 9999 if unit.type == UnitType.AI else value - 3
                 return value
-
+    
     def manhattan_dist(self, src: Coord, dst: Coord) ->int:
         return abs((src.row-dst.row))+abs((src.col-dst.col))
     
@@ -600,7 +602,6 @@ class Game:
                 count +=1
                 currentGame = self.clone()
                 currentGame.perform_move(move)
-                currentGame.next_turn()
                 min_tuple = self.minimax(currentGame, depth, False, start_time)
                 if min_tuple[0] > current_max[0]:
                     current_max = (min_tuple[0],move)
@@ -613,7 +614,6 @@ class Game:
                 count +=1
                 currentGame = self.clone()
                 currentGame.perform_move(move)
-                currentGame.next_turn()
                 max_tuple = self.minimax(currentGame, depth, True, start_time)
                 if max_tuple[0] < current_min[0]:
                     current_min = (max_tuple[0],move)
