@@ -571,7 +571,7 @@ class Game:
             value += unit.damage_amount(unit, defender_ai[1]) * (
                         1 / currentState.manhattan_dist(CoordPair(src=coord, dst=defender_ai[0])))
         for (coord,unit) in currentState.player_units(currentState.Player.Defender):
-            value -= unit.damage_amount(unit,attacker_ai[1])*(1 / currentState.manhattan_dist(CoordPair(src=coord, dst=defender_ai[0])))
+            value -= unit.damage_amount(unit,attacker_ai[1])*(1 / currentState.manhattan_dist(CoordPair(src=coord, dst=attacker_ai[0])))
         return value
     def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
         # if alpha_beta, then use alphabeta pruning
