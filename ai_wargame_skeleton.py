@@ -513,6 +513,12 @@ class Game:
             if unit is not None and unit.player == player:
                 yield (coord,unit)
 
+    def player_ai(self, player: Player) -> Tuple[Coord, Unit]:
+        """Get player's AI position."""
+        for coord in CoordPair.from_dim(self.options.dim).iter_rectangle():
+            unit = self.get(coord)
+            if unit is not None and unit.type == UnitType.AI and unit.player == player:
+                return (coord, unit)
     def is_finished(self) -> bool:
         """Check if the game is over."""
         return self.has_winner() is not None
@@ -554,7 +560,19 @@ class Game:
         for (_,unit) in currentState.player_units(currentState.next_player.next()):
             value = value - 9999 if unit.type == UnitType.AI else value - 3
         return value
-    
+
+    def manhattan_dist(self: CoordPair) ->int:
+        return abs((self.src.row-self.dst.row))+abs((self.src.col-self.dst.col))
+    def e1(self, currentState: Game)-> float:
+        value=0
+        attacker_ai=currentState.player_ai(currentState.Player.Attacker)
+        defender_ai=currentState.player_ai(currentState.Player.Defender)
+        for (coord, unit) in currentState.player_units(currentState.Player.Attacker):
+            value += unit.damage_amount(unit, defender_ai[1]) * (
+                        1 / currentState.manhattan_dist(CoordPair(src=coord, dst=defender_ai[0])))
+        for (coord,unit) in currentState.player_units(currentState.Player.Defender):
+            value -= unit.damage_amount(unit,attacker_ai[1])*(1 / currentState.manhattan_dist(CoordPair(src=coord, dst=attacker_ai[0])))
+        return value
     def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
         # if alpha_beta, then use alphabeta pruning
         
