@@ -685,6 +685,7 @@ class Game:
         self.stats.total_seconds += elapsed_seconds
         self._time_has_elapsed = elapsed_seconds > self.options.max_time
         print(f"Heuristic score: {score}")
+        self.logger.log(f"Heuristic score: {score}")
         print(f"Evals per depth: ",end='')
         for k in sorted(self.stats.evaluations_per_depth.keys()):
             print(f"{k}:{self.stats.evaluations_per_depth[k]} ",end='')
@@ -693,7 +694,25 @@ class Game:
         if self.stats.total_seconds > 0:
             print(f"Eval perf.: {total_evals/self.stats.total_seconds/1000:0.1f}k/s")
         print(f"Elapsed time: {elapsed_seconds:0.1f}s")
+        self.logger.log(f"Elapsed time: {elapsed_seconds:0.1f}s")
+        self.logger.log(f"Cumulative evaluations: {self.stats.evaluations}")
+        self.logger.log(f"Average branching factor: {self.average_branching_factor():.2f}")
+        self.logger.log(f"{self.evals_depth_stats()}")
         return move
+        
+    def average_branching_factor(self) -> int:
+        branching_factors_sum = 0
+        for bf in self.stats.branching_factors:
+            branching_factors_sum += bf
+        return branching_factors_sum / len(self.stats.branching_factors)
+        
+    def evals_depth_stats(self) -> str:
+        s1 = "Cumulative evals by depth: "
+        s2 = "Cumulative % evals by depth: "
+        for k in self.stats.evaluations_per_depth:
+            s1 += f"{k}={self.stats.evaluations_per_depth[k]} "
+            s2 += f"{k}={self.stats.evaluations_per_depth[k]/self.stats.evaluations:.2%} "
+        return s1 + "\n" + s2 + "\n"
 
     def post_move_to_broker(self, move: CoordPair):
         """Send a move to the game broker."""
