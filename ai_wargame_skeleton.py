@@ -609,16 +609,16 @@ class Game:
                 return
             case EvaluationType.E2:
                 p_ai_coords, p_ai_unit = currentState.player_ai(player)
-                o_ai_coords, o_ai_unit =currentState.player_ai(opponent)
+                o_ai_coords, o_ai_unit = currentState.player_ai(opponent)
                 for (coord,unit) in currentState.player_units(player):
                     value += unit.damage_amount(o_ai_unit)*(1 / self.manhattan_dist(coord, o_ai_coords))
                 for (coord, unit) in currentState.player_units(opponent):
                     value -= unit.damage_amount(p_ai_unit)*(1 / self.manhattan_dist(coord, p_ai_coords))
                 return value
             case _:
-                for (_,unit) in currentState.player_units(self.next_player):
+                for (_,unit) in currentState.player_units(player):
                     value = value + 9999 if unit.type == UnitType.AI else value + 3
-                for (_,unit) in currentState.player_units(self.next_player.next()):
+                for (_,unit) in currentState.player_units(opponent):
                     value = value - 9999 if unit.type == UnitType.AI else value - 3
                 return value
     
@@ -629,12 +629,11 @@ class Game:
         # if alpha_beta, then use alphabeta pruning
         
         # else, regular minimax
-        # self.eval_type = EvaluationType.E2 if (self.next_player == Player.Defender) else EvaluationType.E0
         return self.minimax(self.clone(), 0, True, start_time)
 
     # regular minimax function
     def minimax(self, currentState: Game, depth: int, isMax: bool, start_time: datetime) -> Tuple[int, CoordPair | None]:
-        if (depth > self.options.max_depth or currentState.is_finished() or (datetime.now() - start_time).total_seconds() > self.options.max_time-.25):
+        if (depth > self.options.max_depth or currentState.is_finished() or (datetime.now() - start_time).total_seconds() > self.options.max_time-.2):
             if (currentState.is_finished()):
                 return -1000000,None if isMax else 1000000,None
             return self.eval_f(currentState), None
