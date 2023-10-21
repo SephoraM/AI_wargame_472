@@ -606,7 +606,34 @@ class Game:
         value=0
         match self.eval_type:
             case EvaluationType.E1:
-                return
+                atk_units = self.player_units(Player.Attacker)
+                def_units = self.player_units(Player.Defender)
+                atk_v_coord = None
+                atk_f_coord = None
+                atk_p_coord = None
+                def_f_coord = None
+                def_p_coord = None
+                def_t_coord = None
+
+                for unit in atk_units:
+                    if unit[1] is UnitType.Virus:
+                        atk_v_coord = unit[0]
+                    elif unit[1] is UnitType.Firewall:
+                        atk_f_coord = unit[0]
+                    elif unit[1] is UnitType.Program:
+                        atk_p_coord = unit[0]
+
+                for unit in def_units:
+                    if unit[1] is UnitType.Firewall:
+                        def_f_coord = unit[0]
+                    elif unit[1] is UnitType.Program:
+                        def_p_coord = unit[0]
+                    elif unit[1] is UnitType.Tech:
+                        def_t_coord = unit[0]
+
+                return (100 * self.manhattan_dist(atk_v_coord, def_f_coord) +
+                        10 * self.manhattan_dist(atk_f_coord, def_p_coord) +
+                        self.manhattan_dist(atk_p_coord, def_t_coord))
             case EvaluationType.E2:
                 p_ai_coords, p_ai_unit = currentState.player_ai(player)
                 o_ai_coords, o_ai_unit = currentState.player_ai(opponent)
@@ -623,6 +650,8 @@ class Game:
                 return value
     
     def manhattan_dist(self, src: Coord, dst: Coord) ->int:
+        if self.get(src) is None or self.get(dst) is None:
+            return 0
         return abs((src.row-dst.row))+abs((src.col-dst.col))
     
     def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
