@@ -626,7 +626,7 @@ class Game:
         return abs((src.row-dst.row))+abs((src.col-dst.col))
     
     def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
-        # if alpha_beta, then use alphabeta pruning
+        # if alpha_beta then use alphabeta pruning
         
         # else, regular minimax
         return self.minimax(self.clone(), 0, True, start_time)
@@ -664,8 +664,45 @@ class Game:
                     current_min = (max_tuple[0],move)
             return current_min
 
-    def alphabeta(self, currentState: Game, depth: int, alpha: int, beta: int, isMax: bool) -> Tuple[int, CoordPair | None, float]:
-        pass
+    def alphabeta(self, currentState: Game, depth: int, alpha: int, beta: int, isMax: bool,start_time: datetime) -> Tuple[int, CoordPair | None]:
+        if (depth > self.options.max_depth or currentState.is_finished() or (
+                datetime.now() - start_time).total_seconds() > self.options.max_time - .2):
+            if (currentState.is_finished()):
+                return -1000000, None if isMax else 1000000, None
+            return self.eval_f(currentState), None
+        depth += 1
+        self.stats.evaluations += 1
+        self.stats.evaluations_per_depth[depth] += 1
+        moves = list(currentState.move_candidates())
+        self.stats.branching_factors.append(len(moves))
+
+        if isMax:
+            current_max = (-10000000, None)
+            for move in moves:
+                currentGame = currentState.clone()
+                currentGame.perform_barebones_move(move)
+                currentGame.next_turn()
+                min_tuple = self.minimax(currentGame, depth, False, start_time)
+
+                if min_tuple[0] > current_max[0]:
+                    current_max = (min_tuple[0], move)
+                alpha=max(alpha,min_tuple[0])
+                if beta <=alpha:
+                    break
+            return current_max
+        else:
+            current_min = (10000000, None)
+            for move in moves:
+                currentGame = currentState.clone()
+                currentGame.perform_barebones_move(move)
+                currentGame.next_turn()
+                max_tuple = self.minimax(currentGame, depth, True, start_time)
+                if max_tuple[0] < current_min[0]:
+                    current_min = (max_tuple[0], move)
+                beta=min(beta,max_tuple[0])
+                if beta<=alpha:
+                    break
+            return current_min
 
     def random_move(self) -> Tuple[int, CoordPair | None, float]:
         """Returns a random move."""
