@@ -626,7 +626,7 @@ class Game:
         return abs((src.row-dst.row))+abs((src.col-dst.col))
     
     def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
-        # if alpha_beta, then use alphabeta pruning
+        # if alpha_beta then use alphabeta pruning
         
         # else, regular minimax
         return self.minimax(self.clone(), 0, True, start_time)
