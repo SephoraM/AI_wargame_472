@@ -4,6 +4,7 @@ import copy
 from datetime import datetime
 from enum import Enum
 from dataclasses import dataclass, field
+import math
 from time import sleep
 from typing import Tuple, TypeVar, Type, Iterable, ClassVar
 import random
@@ -631,7 +632,7 @@ class Game:
     def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
         # if alpha_beta then use alphabeta pruning
         if self.options.alpha_beta:
-            return self.alphabeta(self.clone(), 0, -9999999999, 9999999999, True, start_time)
+            return self.alphabeta(self.clone(), 0, -math.inf, math.inf, True, start_time)
         
         # else, regular minimax
         return self.minimax(self.clone(), 0, True, start_time)
@@ -648,7 +649,7 @@ class Game:
         self.stats.branching_factors.append(len(moves))
         
         if isMax:
-            current_max = (-10000000, None)
+            current_max = (-math.inf, None)
             for move in moves:
                 currentGame = currentState.clone()
                 currentGame.perform_barebones_move(move)
@@ -658,7 +659,7 @@ class Game:
                     current_max = (min_tuple[0],move)
             return current_max
         else:  
-            current_min = (10000000, None)
+            current_min = (math.inf, None)
             for move in moves:
                 currentGame = currentState.clone()
                 currentGame.perform_barebones_move(move)
@@ -679,7 +680,7 @@ class Game:
         self.stats.branching_factors.append(len(moves))
         
         if isMax:
-            current_max = (-10000000, None)
+            current_max = (-math.inf, None)
             for move in moves:
                 currentGame = currentState.clone()
                 currentGame.perform_barebones_move(move)
@@ -692,7 +693,7 @@ class Game:
                     break
             return current_max
         else:  
-            current_min = (10000000, None)
+            current_min = (math.inf, None)
             for move in moves:
                 currentGame = currentState.clone()
                 currentGame.perform_barebones_move(move)
