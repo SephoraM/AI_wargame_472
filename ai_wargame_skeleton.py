@@ -302,7 +302,7 @@ class Game:
         self.set(Coord(md-1,md-1),Unit(player=Player.Attacker,type=UnitType.Firewall))
 
     def init_stats(self) -> None:
-        for i in range(1, self.options.max_depth +2):
+        for i in range(1, self.options.max_depth +1):
             self.stats.evaluations_per_depth[i] = 0
         self.stats.branching_factors = []
 
@@ -395,32 +395,6 @@ class Game:
                 isAdjacent = True
         return isAdjacent and unit_src.repair_amount(unit_dst) > 0 
 
-    def perform_move(self, coords : CoordPair) -> Tuple[bool,str]:
-        """Validate and perform a move expressed as a CoordPair."""
-        if self.is_valid_move(coords):
-            unit_dst = self.get(coords.dst)
-            unit_src = self.get(coords.src)
-            message = ""
-            if (coords.src == coords.dst):
-                for adj in coords.src.iter_range(1):
-                    if self.get(adj) is not None:
-                        self.mod_health(adj, -2)
-                self.mod_health(coords.src, -9)
-                message = f"Self-destruct at {coords.src}"
-            elif (unit_dst is None):
-                self.set(coords.dst,unit_src)
-                self.set(coords.src,None)
-                message = f"Move from {coords.src} to {coords.dst}"
-            elif (unit_dst.player != self.next_player):
-                self.mod_health(coords.dst, -unit_src.damage_amount(unit_dst))
-                self.mod_health(coords.src, -unit_dst.damage_amount(unit_src))
-                message = f"Attack from {coords.src} to {coords.dst}"
-            else:
-                self.mod_health(coords.dst, unit_src.repair_amount(unit_dst))
-                message = f"Repair from {coords.src} to {coords.dst}"
-            return (True,message)
-        return (False,"invalid move")
-    
     def perform_move(self, coords : CoordPair) -> Tuple[bool,str]:
         """Validate and perform a move expressed as a CoordPair."""
         if self.is_valid_move(coords):
@@ -573,7 +547,7 @@ class Game:
             
     def is_finished(self) -> bool:
         """Check if the game is over."""
-        return self.has_winner() is not None
+        return (not self._attacker_has_ai) or (not self._defender_has_ai) 
 
     def has_winner(self) -> Player | None:
         """Check if the game is over and returns winner"""
@@ -638,9 +612,9 @@ class Game:
                 p_ai_coords, p_ai_unit = currentState.player_ai(player)
                 o_ai_coords, o_ai_unit = currentState.player_ai(opponent)
                 for (coord,unit) in currentState.player_units(player):
-                    value += unit.damage_amount(o_ai_unit)*(1 / self.manhattan_dist(coord, o_ai_coords))
+                    value += unit.damage_amount(o_ai_unit)*(1 / currentState.manhattan_dist(coord, o_ai_coords))
                 for (coord, unit) in currentState.player_units(opponent):
-                    value -= unit.damage_amount(p_ai_unit)*(1 / self.manhattan_dist(coord, p_ai_coords))
+                    value -= unit.damage_amount(p_ai_unit)*(1 / currentState.manhattan_dist(coord, p_ai_coords))
                 return value
             case _:
                 for (_,unit) in currentState.player_units(player):
@@ -656,19 +630,20 @@ class Game:
     
     def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
         # if alpha_beta then use alphabeta pruning
+        if self.options.alpha_beta:
+            return self.alphabeta(self.clone(), 0, -9999999999, 9999999999, True, start_time)
         
         # else, regular minimax
         return self.minimax(self.clone(), 0, True, start_time)
 
     # regular minimax function
     def minimax(self, currentState: Game, depth: int, isMax: bool, start_time: datetime) -> Tuple[int, CoordPair | None]:
-        if (depth > self.options.max_depth or currentState.is_finished() or (datetime.now() - start_time).total_seconds() > self.options.max_time-.2):
+        if (depth == self.options.max_depth or currentState.is_finished() or (datetime.now() - start_time).total_seconds() > self.options.max_time-.2):
             if (currentState.is_finished()):
-                return -1000000,None if isMax else 1000000,None
+                return MIN_HEURISTIC_SCORE,None if isMax else MAX_HEURISTIC_SCORE,None
+            self.stats.evaluations += 1
+            self.stats.evaluations_per_depth[depth] += 1
             return self.eval_f(currentState), None
-        depth += 1
-        self.stats.evaluations += 1
-        self.stats.evaluations_per_depth[depth] += 1
         moves = list(currentState.move_candidates())
         self.stats.branching_factors.append(len(moves))
         
@@ -678,7 +653,7 @@ class Game:
                 currentGame = currentState.clone()
                 currentGame.perform_barebones_move(move)
                 currentGame.next_turn()
-                min_tuple = self.minimax(currentGame, depth, False, start_time)
+                min_tuple = self.minimax(currentGame, depth+1, False, start_time)
                 if min_tuple[0] > current_max[0]:
                     current_max = (min_tuple[0],move)
             return current_max
@@ -688,48 +663,45 @@ class Game:
                 currentGame = currentState.clone()
                 currentGame.perform_barebones_move(move)
                 currentGame.next_turn()
-                max_tuple = self.minimax(currentGame, depth, True, start_time)
+                max_tuple = self.minimax(currentGame, depth+1, True, start_time)
                 if max_tuple[0] < current_min[0]:
                     current_min = (max_tuple[0],move)
             return current_min
 
     def alphabeta(self, currentState: Game, depth: int, alpha: int, beta: int, isMax: bool,start_time: datetime) -> Tuple[int, CoordPair | None]:
-        if (depth > self.options.max_depth or currentState.is_finished() or (
-                datetime.now() - start_time).total_seconds() > self.options.max_time - .2):
+        if (depth == self.options.max_depth or currentState.is_finished() or (datetime.now() - start_time).total_seconds() > self.options.max_time-.2):
             if (currentState.is_finished()):
-                return -1000000, None if isMax else 1000000, None
+                return MIN_HEURISTIC_SCORE,None if isMax else MAX_HEURISTIC_SCORE,None
+            self.stats.evaluations += 1
+            self.stats.evaluations_per_depth[depth] += 1
             return self.eval_f(currentState), None
-        depth += 1
-        self.stats.evaluations += 1
-        self.stats.evaluations_per_depth[depth] += 1
         moves = list(currentState.move_candidates())
         self.stats.branching_factors.append(len(moves))
-
+        
         if isMax:
             current_max = (-10000000, None)
             for move in moves:
                 currentGame = currentState.clone()
                 currentGame.perform_barebones_move(move)
                 currentGame.next_turn()
-                min_tuple = self.minimax(currentGame, depth, False, start_time)
-
+                min_tuple = self.alphabeta(currentGame, depth+1, alpha, beta, False, start_time)
                 if min_tuple[0] > current_max[0]:
-                    current_max = (min_tuple[0], move)
-                alpha=max(alpha,min_tuple[0])
-                if beta <=alpha:
+                    current_max = (min_tuple[0],move)
+                alpha = max(alpha,min_tuple[0])
+                if beta <= alpha:
                     break
             return current_max
-        else:
+        else:  
             current_min = (10000000, None)
             for move in moves:
                 currentGame = currentState.clone()
                 currentGame.perform_barebones_move(move)
                 currentGame.next_turn()
-                max_tuple = self.minimax(currentGame, depth, True, start_time)
+                max_tuple = self.alphabeta(currentGame, depth+1, alpha, beta, True, start_time)
                 if max_tuple[0] < current_min[0]:
-                    current_min = (max_tuple[0], move)
-                beta=min(beta,max_tuple[0])
-                if beta<=alpha:
+                    current_min = (max_tuple[0],move)
+                beta = min(beta,max_tuple[0])
+                if beta <= alpha:
                     break
             return current_min
 
@@ -743,7 +715,7 @@ class Game:
             return (0, None, 0)
 
     def suggest_move(self) -> CoordPair | None:
-        """Suggest the next move using minimax alpha beta. TODO: REPLACE RANDOM_MOVE WITH PROPER GAME LOGIC!!!"""
+        """Suggest the next move using minimax alpha beta."""
         start_time = datetime.now()
         (score, move) = self.minimax_init(start_time)
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
@@ -774,9 +746,10 @@ class Game:
     def evals_depth_stats(self) -> str:
         s1 = "Cumulative evals by depth: "
         s2 = "Cumulative % evals by depth: "
-        for k in self.stats.evaluations_per_depth:
-            s1 += f"{k}={self.stats.evaluations_per_depth[k]} "
-            s2 += f"{k}={self.stats.evaluations_per_depth[k]/self.stats.evaluations:.2%} "
+        if self.stats.evaluations > 0:
+            for k in self.stats.evaluations_per_depth:
+                s1 += f"{k}={self.stats.evaluations_per_depth[k]} "
+                s2 += f"{k}={self.stats.evaluations_per_depth[k]/self.stats.evaluations:.2%} "
         return s1 + "\n" + s2 + "\n"
 
     def post_move_to_broker(self, move: CoordPair):
@@ -839,7 +812,7 @@ def main():
     parser.add_argument('--max_time', type=float, default=5.0, help='maximum search time')
     parser.add_argument('--max_turns', type=int, default=100, help='maximum number of turns')
     parser.add_argument('--game_type', type=str, default="manual", help='game type: auto|attacker|defender|manual')
-    parser.add_argument('--alpha_beta', type=bool, default=True, help='uses alpha-beta: True|False')
+    parser.add_argument('--alpha_beta', type=str, default="True", help='uses alpha-beta: True|False')
     parser.add_argument('--broker', type=str, help='play via a game broker')
     parser.add_argument('--e_function', type=str, default="e0", help='evaluation function: e0|e1|e2')
     args = parser.parse_args()
@@ -864,12 +837,12 @@ def main():
     answer_alpha = input(f"\nThe current Alpha-Beta setting is: {args.alpha_beta}. Would you like to modify the Alpha-Beta parameter? Y/N: ")
     answer_alpha = answer_alpha.lower()
     if answer_alpha == "y":
-        args.alpha_beta = bool(input("For Alpha-Beta On (Enter True)| Off (Enter False): "))
+        args.alpha_beta = input("For Alpha-Beta On (Enter True)| Off (Enter False): ")
 
     answer_e = input(f"\nThe current evaluation function is: {args.e_function}. Would you like to modify the evaluation function? Y/N: ")
     answer_e = answer_e.lower()
     if answer_e == "y":
-        args.e_function = bool(input("Enter e0 or e1 or e2: "))
+        args.e_function = input("Enter e0 or e1 or e2: ")
 
     # parse the game type
     if args.game_type == "attacker" or args.game_type=="H-AI":
@@ -902,7 +875,7 @@ def main():
     if args.max_turns is not None:
         options.max_turns = args.max_turns
     if args.alpha_beta is not None:
-        options.alpha_beta = args.alpha_beta
+        options.alpha_beta = args.alpha_beta.lower().startswith("t")
 
     # create a new game
     game = Game(options=options)
@@ -922,7 +895,7 @@ def main():
                     f'Maximum number of turns: {game.options.max_turns} turns\n'
                     f'Alpha-Beta: {game.options.alpha_beta}\n'
                     f'Game Type: {game_type_representation}\n'
-                    f'Heuristic: Not Applicable'
+                    f'Heuristic: {game.options.e_function}'
                     )
     
     game.logger.log("-------------\n\nGame Parameters:")
