@@ -302,7 +302,7 @@ class Game:
         self.set(Coord(md-1,md-1),Unit(player=Player.Attacker,type=UnitType.Firewall))
 
     def init_stats(self) -> None:
-        for i in range(1, self.options.max_depth +2):
+        for i in range(1, self.options.max_depth +1):
             self.stats.evaluations_per_depth[i] = 0
         self.stats.branching_factors = []
 
@@ -573,7 +573,7 @@ class Game:
             
     def is_finished(self) -> bool:
         """Check if the game is over."""
-        return self.has_winner() is not None
+        return (not self._attacker_has_ai) or (not self._defender_has_ai) 
 
     def has_winner(self) -> Player | None:
         """Check if the game is over and returns winner"""
@@ -606,6 +606,16 @@ class Game:
         value=0
         match self.eval_type:
             case EvaluationType.E1:
+                for (p_coord,p_unit) in currentState.player_units(player):
+                    #print(f"Max: o_ai_coord: {o_ai_coords}, p_ai_coord: {p_ai_coords}, current_state_player: {coord}")
+                    for (o_coord, o_unit) in currentState.player_units(opponent):
+                        if p_unit.type is UnitType.Virus:
+
+                            value += unit.damage_amount(o_ai_unit)*(1 / self.manhattan_dist(coord, o_ai_coords, currentState))
+                for (coord, unit) in currentState.player_units(opponent):
+                    #print(f"Min: o_ai_coord: {o_ai_coords}, p_ai_coord: {p_ai_coords}, current_state_player: {coord}")
+                    value -= unit.damage_amount(p_ai_unit)*(1 / self.manhattan_dist(coord, p_ai_coords, currentState))
+                return value
                 atk_units = self.player_units(Player.Attacker)
                 def_units = self.player_units(Player.Defender)
                 atk_v_coord = None
@@ -634,15 +644,16 @@ class Game:
                 return (100 * self.manhattan_dist(atk_v_coord, def_f_coord) +
                         10 * self.manhattan_dist(atk_f_coord, def_p_coord) +
                         self.manhattan_dist(atk_p_coord, def_t_coord))
+
             case EvaluationType.E2:
                 p_ai_coords, p_ai_unit = currentState.player_ai(player)
                 o_ai_coords, o_ai_unit = currentState.player_ai(opponent)
                 for (coord,unit) in currentState.player_units(player):
-                    value += unit.damage_amount(o_ai_unit)*(1 / self.manhattan_dist(coord, o_ai_coords))
+                    value += unit.damage_amount(o_ai_unit)*(1/currentState.manhattan_dist(coord, o_ai_coords))
                 for (coord, unit) in currentState.player_units(opponent):
-                    value -= unit.damage_amount(p_ai_unit)*(1 / self.manhattan_dist(coord, p_ai_coords))
+                    value -= unit.damage_amount(p_ai_unit)*(1/currentState.manhattan_dist(coord, p_ai_coords))
                 return value
-            case _:
+            case _: # defaults to e0
                 for (_,unit) in currentState.player_units(player):
                     value = value + 9999 if unit.type == UnitType.AI else value + 3
                 for (_,unit) in currentState.player_units(opponent):
@@ -655,83 +666,113 @@ class Game:
         return abs((src.row-dst.row))+abs((src.col-dst.col))
     
     def minimax_init(self, start_time: datetime) -> Tuple[int, CoordPair | None]:
-        # if alpha_beta then use alphabeta pruning
-        
+        # if alpha_beta then use alphabeta 
+        if self.options.alpha_beta:
+            return self.alphabeta(self.clone(), 0, -9999999999, 9999999999, True, start_time)
         # else, regular minimax
         return self.minimax(self.clone(), 0, True, start_time)
 
     # regular minimax function
     def minimax(self, currentState: Game, depth: int, isMax: bool, start_time: datetime) -> Tuple[int, CoordPair | None]:
-        if (depth > self.options.max_depth or currentState.is_finished() or (datetime.now() - start_time).total_seconds() > self.options.max_time-.2):
-            if (currentState.is_finished()):
-                return -1000000,None if isMax else 1000000,None
-            return self.eval_f(currentState), None
-        depth += 1
-        self.stats.evaluations += 1
-        self.stats.evaluations_per_depth[depth] += 1
-        moves = list(currentState.move_candidates())
-        self.stats.branching_factors.append(len(moves))
-        
-        if isMax:
-            current_max = (-10000000, None)
-            for move in moves:
-                currentGame = currentState.clone()
-                currentGame.perform_barebones_move(move)
-                currentGame.next_turn()
-                min_tuple = self.minimax(currentGame, depth, False, start_time)
-                if min_tuple[0] > current_max[0]:
-                    current_max = (min_tuple[0],move)
-            return current_max
-        else:  
-            current_min = (10000000, None)
-            for move in moves:
-                currentGame = currentState.clone()
-                currentGame.perform_barebones_move(move)
-                currentGame.next_turn()
-                max_tuple = self.minimax(currentGame, depth, True, start_time)
-                if max_tuple[0] < current_min[0]:
-                    current_min = (max_tuple[0],move)
-            return current_min
-
-    def alphabeta(self, currentState: Game, depth: int, alpha: int, beta: int, isMax: bool,start_time: datetime) -> Tuple[int, CoordPair | None]:
-        if (depth > self.options.max_depth or currentState.is_finished() or (
+        if (depth == self.options.max_depth or currentState.is_finished() or (
                 datetime.now() - start_time).total_seconds() > self.options.max_time - .2):
             if (currentState.is_finished()):
-                return -1000000, None if isMax else 1000000, None
+                return MIN_HEURISTIC_SCORE, None if isMax else MAX_HEURISTIC_SCORE, None
+            self.stats.evaluations += 1
+            self.stats.evaluations_per_depth[depth] += 1
             return self.eval_f(currentState), None
-        depth += 1
-        self.stats.evaluations += 1
-        self.stats.evaluations_per_depth[depth] += 1
+        
         moves = list(currentState.move_candidates())
         self.stats.branching_factors.append(len(moves))
-
+        (val, mov) = (-10000000, None)
         if isMax:
-            current_max = (-10000000, None)
             for move in moves:
                 currentGame = currentState.clone()
                 currentGame.perform_barebones_move(move)
                 currentGame.next_turn()
-                min_tuple = self.minimax(currentGame, depth, False, start_time)
+                (v, *_) = self.minimax(currentGame, depth+1, False, start_time)
+                if v > val:
+                    val = v
+                    mov = move
+            return val, mov
+        else:  
+            val = 10000000
+            for move in moves:
+                currentGame = currentState.clone()
+                currentGame.perform_barebones_move(move)
+                currentGame.next_turn()
+                (v, *_) = self.minimax(currentGame, depth+1, True, start_time)
+                if v < val:
+                    val = v
+                    mov = move
+            return val, mov
+        
+    # regular minimax function
+    def alternate_minimax(self, currentState: Game, depth: int, isMax: bool, start_time: datetime) -> Tuple[int, CoordPair | None]:
+        if (depth == self.options.max_depth or currentState.is_finished() or (
+                datetime.now() - start_time).total_seconds() > self.options.max_time - .2):
+            if (currentState.is_finished()):
+                return MIN_HEURISTIC_SCORE, None if isMax else MAX_HEURISTIC_SCORE, None
+            self.stats.evaluations += 1
+            self.stats.evaluations_per_depth[depth] += 1
+            return self.eval_f(currentState), None
+        
+        moves = list(currentState.move_candidates())
+        self.stats.branching_factors.append(len(moves))
+        val = float('-inf') if isMax else float('inf')
+        mov = None
+        for move in moves:
+            currentGame = currentState.clone()
+            currentGame.perform_barebones_move(move)
+            currentGame.next_turn()
+            (v, *_) = self.minimax(currentGame, depth+1, not isMax, start_time)
+            if isMax and v > val:               
+                val = v
+                mov = move
+            elif (not isMax) and v < val:  
+                val = v
+                mov = move
+        return val, mov
 
-                if min_tuple[0] > current_max[0]:
-                    current_max = (min_tuple[0], move)
-                alpha=max(alpha,min_tuple[0])
-                if beta <=alpha:
-                    break
-            return current_max
-        else:
-            current_min = (10000000, None)
+    def alphabeta(self, currentState: Game, depth: int, alpha: int, beta: int, isMax: bool,start_time: datetime) -> Tuple[int, CoordPair | None]:
+        if (depth == self.options.max_depth or currentState.is_finished() or (
+                datetime.now() - start_time).total_seconds() > self.options.max_time - .2):
+            if (currentState.is_finished()):
+                return MIN_HEURISTIC_SCORE, None if isMax else MAX_HEURISTIC_SCORE, None
+            self.stats.evaluations += 1
+            self.stats.evaluations_per_depth[depth] += 1
+            return self.eval_f(currentState), None
+        
+        moves = list(currentState.move_candidates())
+        self.stats.branching_factors.append(len(moves))
+        (val, mov) = (-10000000, None)
+        if isMax:
             for move in moves:
                 currentGame = currentState.clone()
                 currentGame.perform_barebones_move(move)
                 currentGame.next_turn()
-                max_tuple = self.minimax(currentGame, depth, True, start_time)
-                if max_tuple[0] < current_min[0]:
-                    current_min = (max_tuple[0], move)
-                beta=min(beta,max_tuple[0])
-                if beta<=alpha:
+                (v, *_) = self.alphabeta(currentGame, depth+1, alpha, beta, False, start_time)
+                if v > val:
+                    val = v
+                    mov = move
+                alpha = max(alpha, val)
+                if beta <= alpha:
                     break
-            return current_min
+            return val, mov
+        else:  
+            val = 10000000
+            for move in moves:
+                currentGame = currentState.clone()
+                currentGame.perform_barebones_move(move)
+                currentGame.next_turn()
+                (v, *_) = self.alphabeta(currentGame, depth+1, alpha, beta, True, start_time)
+                if v < val:
+                    val = v
+                    mov = move
+                beta = min(beta, val)
+                if beta <= alpha:
+                    break
+            return val, mov
 
     def random_move(self) -> Tuple[int, CoordPair | None, float]:
         """Returns a random move."""
@@ -774,9 +815,10 @@ class Game:
     def evals_depth_stats(self) -> str:
         s1 = "Cumulative evals by depth: "
         s2 = "Cumulative % evals by depth: "
-        for k in self.stats.evaluations_per_depth:
-            s1 += f"{k}={self.stats.evaluations_per_depth[k]} "
-            s2 += f"{k}={self.stats.evaluations_per_depth[k]/self.stats.evaluations:.2%} "
+        if self.stats.evaluations > 0:
+            for k in self.stats.evaluations_per_depth:
+                s1 += f"{k}={self.stats.evaluations_per_depth[k]} "
+                s2 += f"{k}={self.stats.evaluations_per_depth[k]/self.stats.evaluations:.2%} "
         return s1 + "\n" + s2 + "\n"
 
     def post_move_to_broker(self, move: CoordPair):
@@ -839,7 +881,7 @@ def main():
     parser.add_argument('--max_time', type=float, default=5.0, help='maximum search time')
     parser.add_argument('--max_turns', type=int, default=100, help='maximum number of turns')
     parser.add_argument('--game_type', type=str, default="manual", help='game type: auto|attacker|defender|manual')
-    parser.add_argument('--alpha_beta', type=bool, default=True, help='uses alpha-beta: True|False')
+    parser.add_argument('--alpha_beta', type=str, default="True", help='uses alpha-beta: True|False')
     parser.add_argument('--broker', type=str, help='play via a game broker')
     parser.add_argument('--e_function', type=str, default="e0", help='evaluation function: e0|e1|e2')
     args = parser.parse_args()
@@ -864,12 +906,12 @@ def main():
     answer_alpha = input(f"\nThe current Alpha-Beta setting is: {args.alpha_beta}. Would you like to modify the Alpha-Beta parameter? Y/N: ")
     answer_alpha = answer_alpha.lower()
     if answer_alpha == "y":
-        args.alpha_beta = bool(input("For Alpha-Beta On (Enter True)| Off (Enter False): "))
+        args.alpha_beta = (input("For Alpha-Beta On (Enter True)| Off (Enter False): "))
 
     answer_e = input(f"\nThe current evaluation function is: {args.e_function}. Would you like to modify the evaluation function? Y/N: ")
     answer_e = answer_e.lower()
     if answer_e == "y":
-        args.e_function = bool(input("Enter e0 or e1 or e2: "))
+        args.e_function = input("Enter e0 or e1 or e2: ")
 
     # parse the game type
     if args.game_type == "attacker" or args.game_type=="H-AI":
@@ -902,7 +944,7 @@ def main():
     if args.max_turns is not None:
         options.max_turns = args.max_turns
     if args.alpha_beta is not None:
-        options.alpha_beta = args.alpha_beta
+        options.alpha_beta = args.alpha_beta.lower().startswith("t")
 
     # create a new game
     game = Game(options=options)
@@ -922,7 +964,7 @@ def main():
                     f'Maximum number of turns: {game.options.max_turns} turns\n'
                     f'Alpha-Beta: {game.options.alpha_beta}\n'
                     f'Game Type: {game_type_representation}\n'
-                    f'Heuristic: Not Applicable'
+                    f'Heuristic: {game.options.e_function}'
                     )
     
     game.logger.log("-------------\n\nGame Parameters:")
