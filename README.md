@@ -33,3 +33,9 @@ options:
   --alpha_beta ALPHA_BETA
                         uses alpha-beta: True|False (default: True)
   --broker BROKER       play via a game broker (default: None)
+
+  # Heuristics for the AI
+
+  **e0**: blablabla
+  **e1**: Weighted average of the manhattan distance between opposing units having favorable attack values
+  **e2**: blablabla
