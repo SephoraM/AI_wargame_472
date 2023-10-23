@@ -638,7 +638,16 @@ class Game:
     def minimax(self, currentState: Game, depth: int, isMax: bool, start_time: datetime) -> Tuple[int, CoordPair | None]:
         if (depth == self.options.max_depth or currentState.is_finished() or (datetime.now() - start_time).total_seconds() > self.options.max_time-.2):
             if (currentState.is_finished()):
-                return MIN_HEURISTIC_SCORE,None if isMax else MAX_HEURISTIC_SCORE,None
+                if (self.next_player == Player.Attacker):
+                    if (not currentState._attacker_has_ai):
+                        return MIN_HEURISTIC_SCORE, None
+                    else:
+                        return MAX_HEURISTIC_SCORE, None
+                else:
+                    if (not currentState._defender_has_ai):
+                        return MIN_HEURISTIC_SCORE, None
+                    else:
+                        return MAX_HEURISTIC_SCORE, None
             self.stats.evaluations += 1
             self.stats.evaluations_per_depth[depth] += 1
             return self.eval_f(currentState), None
@@ -669,7 +678,16 @@ class Game:
     def alphabeta(self, currentState: Game, depth: int, alpha: int, beta: int, isMax: bool,start_time: datetime) -> Tuple[int, CoordPair | None]:
         if (depth == self.options.max_depth or currentState.is_finished() or (datetime.now() - start_time).total_seconds() > self.options.max_time-.2):
             if (currentState.is_finished()):
-                return MIN_HEURISTIC_SCORE,None if isMax else MAX_HEURISTIC_SCORE,None
+                if (self.next_player == Player.Attacker):
+                    if (not currentState._attacker_has_ai):
+                        return MIN_HEURISTIC_SCORE, None
+                    else:
+                        return MAX_HEURISTIC_SCORE, None
+                else:
+                    if (not currentState._defender_has_ai):
+                        return MIN_HEURISTIC_SCORE, None
+                    else:
+                        return MAX_HEURISTIC_SCORE, None
             self.stats.evaluations += 1
             self.stats.evaluations_per_depth[depth] += 1
             return self.eval_f(currentState), None
