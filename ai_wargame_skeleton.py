@@ -581,8 +581,6 @@ class Game:
         value=0
         match self.eval_type:
             case EvaluationType.E1:
-                atk_units = self.player_units(Player.Attacker)
-                def_units = self.player_units(Player.Defender)
                 atk_v_coord = None
                 atk_f_coord = None
                 atk_p_coord = None
@@ -590,25 +588,24 @@ class Game:
                 def_p_coord = None
                 def_t_coord = None
 
-                for unit in atk_units:
-                    if unit[1] is UnitType.Virus:
-                        atk_v_coord = unit[0]
-                    elif unit[1] is UnitType.Firewall:
-                        atk_f_coord = unit[0]
-                    elif unit[1] is UnitType.Program:
-                        atk_p_coord = unit[0]
+                for (coord,unit) in currentState.player_units(Player.Attacker):
+                    if unit.type == UnitType.Virus:
+                        atk_v_coord = coord
+                    elif unit.type == UnitType.Firewall:
+                        atk_f_coord = coord
+                    elif unit.type == UnitType.Program:
+                        atk_p_coord = coord
 
-                for unit in def_units:
-                    if unit[1] is UnitType.Firewall:
-                        def_f_coord = unit[0]
-                    elif unit[1] is UnitType.Program:
-                        def_p_coord = unit[0]
-                    elif unit[1] is UnitType.Tech:
-                        def_t_coord = unit[0]
-
-                return (100 * self.manhattan_dist(atk_v_coord, def_f_coord) +
+                for (coord,unit) in currentState.player_units(Player.Defender):
+                    if unit.type == UnitType.Firewall:
+                        def_f_coord = coord
+                    elif unit.type == UnitType.Program:
+                        def_p_coord = coord
+                    elif unit.type == UnitType.Tech:
+                        def_t_coord = coord
+                return ((100 * self.manhattan_dist(atk_v_coord, def_f_coord) +
                         10 * self.manhattan_dist(atk_f_coord, def_p_coord) +
-                        self.manhattan_dist(atk_p_coord, def_t_coord))
+                        self.manhattan_dist(atk_p_coord, def_t_coord)) / 3)
             case EvaluationType.E2:
                 p_ai_coords, p_ai_unit = currentState.player_ai(player)
                 o_ai_coords, o_ai_unit = currentState.player_ai(opponent)
@@ -625,7 +622,7 @@ class Game:
                 return value
     
     def manhattan_dist(self, src: Coord, dst: Coord) ->int:
-        if self.get(src) is None or self.get(dst) is None:
+        if src is None or dst is None:
             return 0
         return abs((src.row-dst.row))+abs((src.col-dst.col))
     
@@ -641,7 +638,16 @@ class Game:
     def minimax(self, currentState: Game, depth: int, isMax: bool, start_time: datetime) -> Tuple[int, CoordPair | None]:
         if (depth == self.options.max_depth or currentState.is_finished() or (datetime.now() - start_time).total_seconds() > self.options.max_time-.2):
             if (currentState.is_finished()):
-                return MIN_HEURISTIC_SCORE,None if isMax else MAX_HEURISTIC_SCORE,None
+                if (self.next_player == Player.Attacker):
+                    if (not currentState._attacker_has_ai):
+                        return MIN_HEURISTIC_SCORE, None
+                    else:
+                        return MAX_HEURISTIC_SCORE, None
+                else:
+                    if (not currentState._defender_has_ai):
+                        return MIN_HEURISTIC_SCORE, None
+                    else:
+                        return MAX_HEURISTIC_SCORE, None
             self.stats.evaluations += 1
             self.stats.evaluations_per_depth[depth] += 1
             return self.eval_f(currentState), None
@@ -672,7 +678,16 @@ class Game:
     def alphabeta(self, currentState: Game, depth: int, alpha: int, beta: int, isMax: bool,start_time: datetime) -> Tuple[int, CoordPair | None]:
         if (depth == self.options.max_depth or currentState.is_finished() or (datetime.now() - start_time).total_seconds() > self.options.max_time-.2):
             if (currentState.is_finished()):
-                return MIN_HEURISTIC_SCORE,None if isMax else MAX_HEURISTIC_SCORE,None
+                if (self.next_player == Player.Attacker):
+                    if (not currentState._attacker_has_ai):
+                        return MIN_HEURISTIC_SCORE, None
+                    else:
+                        return MAX_HEURISTIC_SCORE, None
+                else:
+                    if (not currentState._defender_has_ai):
+                        return MIN_HEURISTIC_SCORE, None
+                    else:
+                        return MAX_HEURISTIC_SCORE, None
             self.stats.evaluations += 1
             self.stats.evaluations_per_depth[depth] += 1
             return self.eval_f(currentState), None
