@@ -1,8 +1,4 @@
 # AI_wargame_472
-    Developped By: 
-    Jason Achkar Diab ID:40227239
-    Sephora Maltais   ID:40151723
-    Tabesh Haidary    ID:40024147
 **Wargame AI project for COMP 472**
 
 ### Project description
